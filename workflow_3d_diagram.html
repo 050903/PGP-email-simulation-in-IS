@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PGP Email Encryption Workflow - 3D Flow Diagram</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .control-btn {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 12px;
+        }
+
+        .control-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            max-width: 320px;
+            font-size: 13px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 12px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border-radius: 3px;
+        }
+
+        #info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            max-width: 450px;
+            display: none;
+            font-size: 14px;
+        }
+
+        .workflow-phase {
+            font-weight: bold;
+            color: #333;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+
+    <div id="controls">
+        <h3>PGP Workflow Controls</h3>
+        <button class="control-btn" onclick="animateFlow()">Animate Encryption Flow</button>
+        <button class="control-btn" onclick="resetView()">Reset View</button>
+        <button class="control-btn" onclick="toggleRotation()">Toggle Rotation</button>
+        <button class="control-btn" onclick="focusOnSender()">Focus Sender</button>
+        <button class="control-btn" onclick="focusOnRecipient()">Focus Recipient</button>
+    </div>
+
+    <div id="legend">
+        <h3>PGP Email Encryption Process</h3>
+        <div class="workflow-phase">Sender Side (Team Leader)</div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #ff6b6b;"></div>
+            <span>Document Creation</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4ecdc4;"></div>
+            <span>Key Generation</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #45b7d1;"></div>
+            <span>Encryption Process</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #f9ca24;"></div>
+            <span>Digital Signature</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #ff9ff3;"></div>
+            <span>Transmission</span>
+        </div>
+
+        <div class="workflow-phase" style="margin-top: 15px;">Recipient Side (Team 02)</div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #6c5ce7;"></div>
+            <span>Decryption Process</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #a29bfe;"></div>
+            <span>Verification & Completion</span>
+        </div>
+
+        <div style="margin-top: 15px; font-size: 11px; color: #666;">
+            <strong>Security Features:</strong><br />
+            • Symmetric Encryption (Session Key)<br />
+            • Asymmetric Encryption (Public/Private Keys)<br />
+            • Digital Signatures for Authentication<br />
+            • Hash-based Integrity Verification
+        </div>
+    </div>
+
+    <div id="info-panel">
+        <h4 id="step-title">PGP Process Step</h4>
+        <p id="step-description">Click on any step to see detailed information</p>
+        <div id="step-details"></div>
+    </div>
+
+    <script>
+        let scene, camera, renderer;
+        let flowNodes = [];
+        let connections = [];
+        
+        let animationRunning = false;
+        let autoRotate = true;
+        let animationIndex = 0;
+        
+        let currentlyHighlighted = { node: null, line: null };
+        let nextStepTime = 0;
+        const stepInterval = 1000; // ms, time between the start of one segment animation and the next
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let intersectedObject = null;
+
+
+        // PGP Process steps data
+        const processSteps = [
+            // Sender Side (Team Leader)
+            { id: 1, title: "Compose Email/File", description: "Team Leader composes email/file (teamname.docx)", details: "Initial document creation phase where the sender prepares the content to be encrypted and sent securely.", color: 0xff6b6b, position: [-10, 4, 2], phase: "sender" },
+            { id: 2, title: "Generate Session Key", description: "PGP generates a random Session Key for symmetric encryption", details: "A unique session key is generated for this specific email. This key will be used for fast symmetric encryption of the actual content.", color: 0x4ecdc4, position: [-8, 3, 0], phase: "sender" },
+            { id: 3, title: "Encrypt Content", description: "PGP encrypts email/file content using Session Key", details: "The actual email content is encrypted using symmetric encryption with the session key. Result: Encrypted Content.", color: 0x45b7d1, position: [-6, 2, 3], phase: "sender" },
+            { id: 4, title: "Encrypt Session Key", description: "PGP encrypts Session Key using recipient's Public Key", details: "The session key itself is encrypted using the recipient's public key (asymmetric encryption). Result: Encrypted Session Key.", color: 0x45b7d1, position: [-4, 1, 1], phase: "sender" },
+            { id: 5, title: "Generate Hash", description: "PGP generates Hash of original email/file content", details: "A cryptographic hash is created from the original content to ensure integrity verification later.", color: 0x4ecdc4, position: [-2, 0, 2], phase: "sender" },
+            { id: 6, title: "Create Digital Signature", description: "PGP signs Hash using sender's Private Key", details: "The hash is encrypted with the sender's private key to create a digital signature, ensuring authenticity.", color: 0xf9ca24, position: [0, -1, 0], phase: "sender" },
+            { id: 7, title: "Attach & Send", description: "Sender attaches all components and sends email", details: "All components are attached: Encrypted Content, Encrypted Session Key, and Digital Signature.", color: 0xff9ff3, position: [2, 0, 1], phase: "transmission" },
+            { id: 8, title: "Email Transmission", description: "Email sent over the Internet to recipient", details: "The encrypted email with all security components travels through the internet infrastructure.", color: 0xff9ff3, position: [4, 1, 3], phase: "transmission" },
+            { id: 9, title: "Receive Email", description: "Recipient (Team 02) receives the encrypted email", details: "The recipient receives the email containing encrypted content, encrypted session key, and digital signature.", color: 0x6c5ce7, position: [6, 2, 0], phase: "recipient" },
+            { id: 10, title: "Decrypt Session Key", description: "PGP uses recipient's Private Key to decrypt Session Key", details: "The recipient's PGP uses their private key to decrypt the session key. Result: Original Session Key.", color: 0x6c5ce7, position: [8, 3, 2], phase: "recipient" },
+            { id: 11, title: "Decrypt Content", description: "PGP uses Session Key to decrypt email content", details: "Using the decrypted session key, the email content is decrypted. Result: Original email/file content.", color: 0x6c5ce7, position: [10, 4, 1], phase: "recipient" },
+            { id: 12, title: "Verify Digital Signature", description: "PGP uses sender's Public Key to decrypt Digital Signature", details: "The digital signature is verified using the sender's public key to retrieve the original hash.", color: 0xa29bfe, position: [8, 2, -2], phase: "recipient" },
+            { id: 13, title: "Generate New Hash", description: "PGP generates new Hash from decrypted content", details: "A new hash is generated from the decrypted email content for comparison with the original hash.", color: 0xa29bfe, position: [6, 1, -1], phase: "recipient" },
+            { id: 14, title: "Compare Hashes", description: "PGP compares original and new Hash for verification", details: "If hashes match: Integrity and authenticity confirmed (Valid). If they don't match: Warning (Data altered or forged).", color: 0xa29bfe, position: [4, 0, -3], phase: "recipient" },
+            { id: 15, title: "Read Email/File", description: "Recipient reads the verified email/file content", details: "After successful verification, the recipient can safely read the decrypted and authenticated content.", color: 0xa29bfe, position: [2, -1, -2], phase: "recipient" },
+        ];
+
+        const connectionPaths = [
+            [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8],
+            [8, 9], [9, 10], [10, 11], [8, 12], /* Fork from 8 to 12 */
+            [12, 13], [13, 14], [11, 14], /* Merge at 14 */
+            [14, 15]
+        ];
+
+        function createNode(step) {
+            const geometry = new THREE.SphereGeometry(0.7, 32, 32);
+            const material = new THREE.MeshStandardMaterial({
+                color: step.color,
+                roughness: 0.5,
+                metalness: 0.1,
+            });
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.position.set(...step.position);
+            sphere.castShadow = true;
+            sphere.receiveShadow = true;
+            sphere.userData = step;
+            return sphere;
+        }
+
+        function createConnection(startNode, endNode) {
+            if (!startNode || !endNode) {
+                console.warn('Invalid nodes provided to createConnection: start or end is null/undefined.');
+                if (!startNode) console.warn('Start node is invalid.');
+                if (!endNode) console.warn('End node is invalid.');
+                return null;
+            }
+
+            if (!startNode.position || !endNode.position) {
+                console.warn('Nodes missing position data for connection.');
+                if (startNode.userData) console.warn('Start node data:', startNode.userData.title);
+                if (endNode.userData) console.warn('End node data:', endNode.userData.title);
+                return null;
+            }
+
+            try {
+                const points = [startNode.position.clone(), endNode.position.clone()];
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 1.5 }); // Linewidth might have limited effect
+                const line = new THREE.Line(geometry, material);
+                return line;
+            } catch (error) {
+                console.error('Error creating connection:', error, 'Start:', startNode.userData?.title, 'End:', endNode.userData?.title);
+                return null;
+            }
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0a);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 8, 20);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById("container").appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6); // Slightly increased intensity
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9); // Slightly increased intensity
+            directionalLight.position.set(15, 15, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+
+            const pointLight1 = new THREE.PointLight(0x00ff88, 0.7, 50);
+            pointLight1.position.set(-10, 10, 5);
+            scene.add(pointLight1);
+
+            const pointLight2 = new THREE.PointLight(0xff6b6b, 0.5, 40);
+            pointLight2.position.set(10, 5, -5);
+            scene.add(pointLight2);
+
+            const pointLight3 = new THREE.PointLight(0x6c5ce7, 0.6, 45);
+            pointLight3.position.set(0, -5, 10);
+            scene.add(pointLight3);
+
+            flowNodes = processSteps.map(createNode);
+            flowNodes.forEach(node => scene.add(node));
+
+            connections = connectionPaths.map(([startIdx, endIdx]) => {
+                if (startIdx >= flowNodes.length || endIdx >= flowNodes.length || startIdx < 0 || endIdx < 0) {
+                    console.error(`Invalid node index in connectionPaths: [${startIdx}, ${endIdx}] for nodes array of length ${flowNodes.length}`);
+                    return null;
+                }
+                return createConnection(flowNodes[startIdx], flowNodes[endIdx]);
+            }).filter(conn => conn !== null); // Filter out any nulls if connection creation failed
+
+            connections.forEach(conn => scene.add(conn));
+
+            window.addEventListener("resize", onWindowResize, false);
+            document.getElementById('container').addEventListener('mousedown', onDocumentMouseDown, false);
+            
+            animateWorkflow(); // Start the animation loop
+        }
+
+        function animateWorkflow() {
+            requestAnimationFrame(animateWorkflow);
+
+            if (autoRotate) {
+                scene.rotation.y += 0.003; // Slightly slower rotation
+            }
+
+            const now = performance.now();
+            if (animationRunning && now >= nextStepTime) {
+                animateFlowSegment();
+                if (animationRunning) { // animateFlowSegment might set it to false
+                    nextStepTime = now + stepInterval;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+        
+        function animateFlowSegment() {
+            // Clear previous line highlight (node highlight is managed to persist if it's a start_node)
+            if (currentlyHighlighted.line) {
+                currentlyHighlighted.line.material.color.setHex(0xffffff);
+                currentlyHighlighted.line = null;
+            }
+
+            if (animationIndex >= connectionPaths.length) {
+                animationRunning = false;
+                if (currentlyHighlighted.node) { // Clear last highlighted node after a delay
+                    const lastNode = currentlyHighlighted.node;
+                    setTimeout(() => {
+                        if (lastNode && currentlyHighlighted.node === lastNode) { // Ensure it's still the one to clear
+                           lastNode.material.emissive.setHex(0x000000);
+                           currentlyHighlighted.node = null;
+                        }
+                    }, stepInterval / 2); 
+                }
+                animationIndex = 0; // Reset for next run
+                return;
+            }
+
+            const [startNodeIdx, endNodeIdx] = connectionPaths[animationIndex];
+            const startNode = flowNodes[startNodeIdx];
+            const endNode = flowNodes[endNodeIdx];
+            const lineToAnimate = connections[animationIndex]; // Assumes connections array maps 1:1 to connectionPaths after filtering
+
+            // If a node is currently highlighted, and it's not the startNode of this segment, unhighlight it.
+            if (currentlyHighlighted.node && currentlyHighlighted.node !== startNode) {
+                currentlyHighlighted.node.material.emissive.setHex(0x000000);
+            }
+            
+            if (startNode) {
+                startNode.material.emissive.setHex(0xffff00); // Highlight start node
+                currentlyHighlighted.node = startNode;
+            }
+
+            if (lineToAnimate) {
+                lineToAnimate.material.color.setHex(0xffff00); // Highlight line
+                
+                setTimeout(() => {
+                    if (lineToAnimate) lineToAnimate.material.color.setHex(0xffffff); // Reset line color
+
+                    // Transition highlight from startNode to endNode
+                    if (startNode && startNode !== endNode) {
+                        startNode.material.emissive.setHex(0x000000);
+                    }
+                    if (endNode) {
+                        endNode.material.emissive.setHex(0xffff00);
+                        currentlyHighlighted.node = endNode; // endNode is now the active one
+                    }
+                }, stepInterval / 2); // Line stays highlighted for half the interval
+            } else {
+                 // If no line (should not happen with current setup), just transition node highlight
+                 setTimeout(() => {
+                    if (startNode && startNode !== endNode) {
+                        startNode.material.emissive.setHex(0x000000);
+                    }
+                    if (endNode) {
+                        endNode.material.emissive.setHex(0xffff00);
+                        currentlyHighlighted.node = endNode;
+                    }
+                }, stepInterval / 2);
+            }
+            
+            animationIndex++;
+        }
+
+
+        function resetNodeEmphasis() {
+            flowNodes.forEach((node) => {
+                if(node) node.material.emissive.setHex(0x000000);
+            });
+            connections.forEach((conn) => {
+                if(conn) conn.material.color.setHex(0xffffff);
+            });
+            
+            if (currentlyHighlighted.node) currentlyHighlighted.node.material.emissive.setHex(0x000000);
+            if (currentlyHighlighted.line) currentlyHighlighted.line.material.color.setHex(0xffffff);
+            
+            currentlyHighlighted = { node: null, line: null };
+            animationIndex = 0;
+            animationRunning = false; 
+        }
+
+        function animateFlow() {
+            if (animationRunning) {
+                resetNodeEmphasis(); // Stop current, clear, and reset state
+            }
+            // Start new animation
+            animationRunning = true;
+            animationIndex = 0; 
+            nextStepTime = performance.now(); // Start the first step immediately
+            // The animateWorkflow loop will pick up and call animateFlowSegment
+        }
+
+        function resetView() {
+            camera.position.set(0, 8, 20);
+            camera.lookAt(new THREE.Vector3(0, 0, 0));
+            if (animationRunning) resetNodeEmphasis(); // Also reset animation if it's running
+        }
+
+        function toggleRotation() {
+            autoRotate = !autoRotate;
+        }
+
+        function focusOnPhase(phase) {
+            const phaseNodes = flowNodes.filter(node => node.userData.phase === phase);
+            if (phaseNodes.length === 0) return;
+
+            const center = new THREE.Vector3();
+            phaseNodes.forEach(node => center.add(node.position));
+            center.divideScalar(phaseNodes.length);
+
+            camera.position.set(center.x, center.y + 6, center.z + 12); // Adjusted zoom/angle
+            camera.lookAt(center);
+        }
+
+        function focusOnSender() {
+            focusOnPhase("sender");
+        }
+
+        function focusOnRecipient() {
+            focusOnPhase("recipient");
+        }
+        
+        function onDocumentMouseDown(event) {
+            event.preventDefault();
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(flowNodes);
+
+            if (intersects.length > 0) {
+                intersectedObject = intersects[0].object;
+                const stepData = intersectedObject.userData;
+                
+                document.getElementById("info-panel").style.display = "block";
+                document.getElementById("step-title").textContent = stepData.title;
+                document.getElementById("step-description").textContent = stepData.description;
+                document.getElementById("step-details").innerHTML = stepData.details.replace(/\n/g, '<br>');
+            } else {
+                // Optionally hide info panel if clicking outside a node
+                // document.getElementById("info-panel").style.display = "none";
+                intersectedObject = null;
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        init();
+    </script>
+</body>
+</html>
